@@ -81,16 +81,21 @@ public:
       Function *F = Visiting->getFunction();
       auto &Childs = ChildsMap[Visiting->getFunction()];
 
-      for_each(F->users(), [&](User *U) {
+      auto HandleUser = [&](User *U) {
         if (auto *CB = dyn_cast<CallBase>(U)) {
           if (!canBeCaught(CB, Exception, Analyzer)) {
             Childs.insert(CB->getFunction());
             ToVisit.push_back(CB);
           }
         }
-      });
+      };
 
-      //TODO: iterate virtual call users
+      for_each(F->users(), HandleUser);
+
+      SmallVector<User *, 5> Callers;
+      if (Analyzer.getCallerCandidates(F, Callers))
+        for_each(Callers, HandleUser);
+
     }
   }
 
