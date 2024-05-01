@@ -9,6 +9,13 @@ using namespace llvm;
 
 STATISTIC(NumVirtualCalls,   "Number of NoAlias results");
 STATISTIC(NumNonVirtualCalls,   "Number of NoAlias results");
+bool VCallCandidatesAnalyzer::derivedFrom(Value *Base, Value *Derived) {
+  if (!SubclassesMap.contains(Base))
+    return false;
+
+  return SubclassesMap[Base].contains(Derived);
+}
+
 bool VCallCandidatesAnalyzer::analyze() {
   TypeIdCompatibleMap.clear();
 
@@ -18,14 +25,32 @@ bool VCallCandidatesAnalyzer::analyze() {
       continue;
     Types.clear();
     GV.getMetadata(LLVMContext::MD_type, Types);
+    StringRef GVName = GV.getName();
+    if (!GVName.consume_front("_ZTV"))
+      continue;
+
+    if (auto Index = GVName.find('.'))
+      GVName = GVName.substr(0, Index);
+
+    Value *TypeInfo = M.getNamedGlobal("_ZTI" + GVName.str());
+
     for (MDNode *Type : Types) {
       auto TypeID = Type->getOperand(1).get();
       uint64_t Offset = cast<ConstantInt>(cast<ConstantAsMetadata>(Type->getOperand(0))->getValue())->getZExtValue();
 
       if (auto *TypeId = dyn_cast<MDString>(TypeID)) {
-        if (TypeId->getString().ends_with(".virtual"))
+        StringRef TypeIdStr = TypeId->getString();
+        if (TypeIdStr.ends_with(".virtual"))
           continue;
-        insertAddressPoint(TypeId->getString(), &GV, Offset);
+
+        insertAddressPoint(TypeIdStr, &GV, Offset);
+
+        if (!TypeIdStr.consume_front("_ZTS"))
+          llvm_unreachable("Type id string is not start with _ZTS");
+
+        std::string BaseName = "_ZTI" + TypeIdStr.str();
+        GlobalVariable *Base = M.getNamedGlobal("_ZTI" + TypeIdStr.str());
+        SubclassesMap[Base].insert(TypeInfo);
       }
     }
   }

@@ -30,6 +30,25 @@ STATISTIC(NumDeadBlock, "Number of functions marked as nosync");
 
 static unsigned NumMayThrow = 0;
 
+static bool canBeCaught(CallBase *CB, Value *Exception, VCallCandidatesAnalyzer &Analyzer) {
+  auto *II = dyn_cast<InvokeInst>(CB);
+  if (!II)
+    return false;
+
+  auto *LPad = dyn_cast_if_present<LandingPadInst>(II->getUnwindDest()->getFirstNonPHI());
+  if (!LPad)
+    return false;
+
+  for (unsigned I = 0; I < LPad->getNumClauses(); I++) {
+    auto *Clause = LPad->getClause(I);
+    if (isa<ConstantPointerNull>(Clause) || Clause == Exception ||
+        Analyzer.derivedFrom(Clause, Exception))
+      return true;
+  }
+
+  return false;
+}
+
 class EHGraphDOTInfo {
 public:
 
@@ -44,7 +63,7 @@ private:
   Value *Exception;
 
 public:
-  EHGraphDOTInfo(CallBase *CxaThrow) {
+  EHGraphDOTInfo(CallBase *CxaThrow, VCallCandidatesAnalyzer &Analyzer) {
     EntryNode = CxaThrow->getFunction();
     Exception = CxaThrow->getArgOperand(1);
     ChildsMap.clear();
@@ -63,10 +82,11 @@ public:
       auto &Childs = ChildsMap[Visiting->getFunction()];
 
       for_each(F->users(), [&](User *U) {
-        //TODO: check if can be caught
         if (auto *CB = dyn_cast<CallBase>(U)) {
-          Childs.insert(CB->getFunction());
-          ToVisit.push_back(CB);
+          if (!canBeCaught(CB, Exception, Analyzer)) {
+            Childs.insert(CB->getFunction());
+            ToVisit.push_back(CB);
+          }
         }
       });
 
@@ -189,7 +209,7 @@ struct DOTGraphTraits<EHGraphDOTInfo *> : public DefaultDOTGraphTraits {
 };
 
 namespace {
-void doEHGraphDOTPrinting(Module &M) {
+void doEHGraphDOTPrinting(Module &M, VCallCandidatesAnalyzer &Analyzer) {
   Function *CxaThrow = cast_if_present<Function>(M.getNamedValue("__cxa_throw"));
   if (!CxaThrow)
     return;
@@ -204,18 +224,14 @@ void doEHGraphDOTPrinting(Module &M) {
     errs() << "Writing '" << Filename << "'...\n";
     std::error_code EC;
     raw_fd_ostream File(Filename, EC, sys::fs::OF_Text);
-    EHGraphDOTInfo GInfo(CB);
+    EHGraphDOTInfo GInfo(CB, Analyzer);
     if (!EC)
       WriteGraph(File, &GInfo);
     else
       errs() << "  error opening file for writing!\n";
   }
 }
-
 }
-
-
-
 
 static void computeLandingPads(BasicBlock *BB, SmallPtrSetImpl<LandingPadInst *> &LPads) {
   DenseSet<BasicBlock *> Visited;
@@ -386,7 +402,7 @@ PreservedAnalyses EHInferPass::run(Module &M,
     }
   }
 
-  doEHGraphDOTPrinting(M);
+  doEHGraphDOTPrinting(M, *Analyzer);
 
   return PreservedAnalyses::all();
 }
