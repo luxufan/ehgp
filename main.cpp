@@ -12,7 +12,7 @@
 #include <llvm/IR/Verifier.h>
 
 #include "IndirectCallAnalysis.h"
-#include "EHInfer.h"
+#include "EHGraphPrinter.h"
 
 using namespace llvm;
 

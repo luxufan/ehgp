@@ -1,4 +1,3 @@
-#include "EHInfer.h"
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/IntrinsicInst.h>
 #include <llvm/IR/Constants.h>
@@ -9,6 +8,7 @@
 #include <llvm/Demangle/Demangle.h>
 #include <llvm/ADT/SmallPtrSet.h>
 
+#include "EHGraphPrinter.h"
 #include "IndirectCallAnalysis.h"
 
 using namespace llvm;
