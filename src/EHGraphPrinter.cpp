@@ -10,6 +10,7 @@
 
 #include "EHGraphPrinter.h"
 #include "IndirectCallAnalysis.h"
+#include "util.h"
 
 using namespace llvm;
 #define DEBUG_TYPE "ehinfer"
@@ -137,22 +138,14 @@ struct DOTGraphTraits<EHGraphDOTInfo *> : public DefaultDOTGraphTraits {
   }
 
   std::string getNodeLabel(Function *Node, EHGraphDOTInfo *Info) {
-    std::string Label;
-    char *DemangleName = itaniumDemangle(Node->getName());
-    if (DemangleName)
-      Label += DemangleName;
-    else
-      Label += Node->getName();
+    std::string Label = getDemangledName(Node->getName());
 
     Label = Label.substr(0, Label.find('('));
 
     if (Info->getEntryNode() == Node) {
-      char *DemangledException = itaniumDemangle(Info->getException()->getName());
       Label += " THROWS: ";
-      if (DemangledException)
-        Label += DemangledException;
-      else
-        Label += Info->getException()->getName();
+      std::string ExceptionName = getDemangledName(Info->getException()->getName());
+      Label += ExceptionName;
     }
     return Label;
   }
