@@ -207,6 +207,7 @@ void doEHGraphDOTPrinting(Module &M, VCallCandidatesAnalyzer &Analyzer) {
     std::error_code EC;
     raw_fd_ostream File(Filename, EC, sys::fs::OF_Text);
     EHGraphDOTInfo GInfo(CB, Analyzer);
+    errs() << getDemangledName(GInfo.getEntryNode()->getName()) << " throw " << getDemangledName(GInfo.getException()->getName()) << "\n";
     if (!EC)
       WriteGraph(File, &GInfo);
     else
