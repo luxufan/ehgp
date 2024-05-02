@@ -217,7 +217,7 @@ void doEHGraphDOTPrinting(Module &M, VCallCandidatesAnalyzer &Analyzer) {
 }
 
 
-PreservedAnalyses EHInferPass::run(Module &M,
+PreservedAnalyses EHGraphPrinterPass::run(Module &M,
                                    ModuleAnalysisManager &AM) {
 
   auto &VCallAnalyzer = AM.getResult<VCallAnalysis>(M);

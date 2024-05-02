@@ -5,7 +5,7 @@
 
 using namespace llvm;
 
-struct EHInferPass : PassInfoMixin<EHInferPass> {
+struct EHGraphPrinterPass : PassInfoMixin<EHGraphPrinterPass> {
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 };
 

@@ -27,7 +27,7 @@ bool runPasses(Module &M) {
   MAM.registerPass([&] { return VCallAnalysis(); });
   MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
   ModulePassManager MPM;
-  MPM.addPass(EHInferPass());
+  MPM.addPass(EHGraphPrinterPass());
   MPM.run(M, MAM);
   return 1;
 }
