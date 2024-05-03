@@ -8,6 +8,7 @@
 #include <llvm/Demangle/Demangle.h>
 #include <llvm/ADT/SmallPtrSet.h>
 
+#include "ICallSolver.h"
 #include "EHGraphPrinter.h"
 #include "IndirectCallAnalysis.h"
 #include "util.h"
@@ -48,7 +49,8 @@ private:
   Value *Exception;
 
 public:
-  EHGraphDOTInfo(CallBase *CxaThrow, VCallCandidatesAnalyzer &Analyzer) {
+  EHGraphDOTInfo(CallBase *CxaThrow, VCallCandidatesAnalyzer &Analyzer,
+                 ICallSolver &Solver) {
     EntryNode = CxaThrow->getFunction();
     Exception = CxaThrow->getArgOperand(1);
     ChildsMap.clear();
@@ -79,6 +81,10 @@ public:
 
       SmallVector<User *, 5> Callers;
       if (Analyzer.getCallerCandidates(F, Callers))
+        for_each(Callers, HandleUser);
+
+      Callers.clear();
+      if (Solver.getCallSites(F, Callers))
         for_each(Callers, HandleUser);
 
     }
@@ -191,7 +197,7 @@ struct DOTGraphTraits<EHGraphDOTInfo *> : public DefaultDOTGraphTraits {
 };
 
 namespace {
-void doEHGraphDOTPrinting(Module &M, VCallCandidatesAnalyzer &Analyzer) {
+void doEHGraphDOTPrinting(Module &M, VCallCandidatesAnalyzer &Analyzer, ICallSolver &Solver) {
   Function *CxaThrow = cast_if_present<Function>(M.getNamedValue("__cxa_throw"));
   if (!CxaThrow)
     return;
@@ -206,7 +212,7 @@ void doEHGraphDOTPrinting(Module &M, VCallCandidatesAnalyzer &Analyzer) {
     errs() << "Writing '" << Filename << "'...\n";
     std::error_code EC;
     raw_fd_ostream File(Filename, EC, sys::fs::OF_Text);
-    EHGraphDOTInfo GInfo(CB, Analyzer);
+    EHGraphDOTInfo GInfo(CB, Analyzer, Solver);
     errs() << getDemangledName(GInfo.getEntryNode()->getName()) << " throw " << getDemangledName(GInfo.getException()->getName()) << "\n";
     if (!EC)
       WriteGraph(File, &GInfo);
@@ -216,14 +222,15 @@ void doEHGraphDOTPrinting(Module &M, VCallCandidatesAnalyzer &Analyzer) {
 }
 }
 
-
 PreservedAnalyses EHGraphPrinterPass::run(Module &M,
                                    ModuleAnalysisManager &AM) {
 
   auto &VCallAnalyzer = AM.getResult<VCallAnalysis>(M);
   VCallAnalyzer.analyze();
+  auto &ICallSolver = AM.getResult<ICallSolverAnalysis>(M);
+  ICallSolver.solve();
 
-  doEHGraphDOTPrinting(M, VCallAnalyzer);
+  doEHGraphDOTPrinting(M, VCallAnalyzer, ICallSolver);
 
   return PreservedAnalyses::all();
 }

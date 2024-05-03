@@ -12,6 +12,7 @@
 #include <llvm/IR/Verifier.h>
 
 #include "IndirectCallAnalysis.h"
+#include "ICallSolver.h"
 #include "EHGraphPrinter.h"
 
 using namespace llvm;
@@ -25,6 +26,7 @@ bool runPasses(Module &M) {
   ModuleAnalysisManager MAM;
   PassBuilder PB;
   MAM.registerPass([&] { return VCallAnalysis(); });
+  MAM.registerPass([&] { return ICallSolverAnalysis(); });
   MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
   ModulePassManager MPM;
   MPM.addPass(EHGraphPrinterPass());

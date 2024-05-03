@@ -11,3 +11,15 @@ target_link_libraries(
   ${llvm_libs}
   ica
 )
+
+add_executable(
+  ICallSolverTest
+  ICallSolverTest.cpp
+)
+
+target_link_libraries(
+  ICallSolverTest
+  gtest_main
+  ${llvm_libs}
+  ics
+)
