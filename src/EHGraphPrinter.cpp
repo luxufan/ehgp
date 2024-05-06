@@ -80,13 +80,11 @@ public:
       for_each(F->users(), HandleUser);
 
       SmallVector<User *, 5> Callers;
-      if (Analyzer.getCallerCandidates(F, Callers))
-        for_each(Callers, HandleUser);
 
-      Callers.clear();
       if (Solver.getCallSites(F, Callers))
         for_each(Callers, HandleUser);
-
+      else if (Analyzer.getCallerCandidates(F, Callers))
+        for_each(Callers, HandleUser);
     }
   }
 
