@@ -9,46 +9,14 @@
 #include <set>
 using namespace llvm;
 
-class ValueLattice {
-  std::set<Function *> Funcs;
-  bool Top = false;
-  bool Unknown = true;
-
-public:
-  bool merge(ValueLattice &VL);
-
-  const auto &getFuncs() const { return Funcs; }
-  void setTop() { Top = true; }
-  bool isTop() { return Top; }
-  bool isUnknown() { return Unknown; }
-
-  bool addFunc(Function *F) {
-    Unknown = false;
-    return Funcs.insert(F).second;
-  }
-
-};
-
 class ICallSolver : public InstVisitor<ICallSolver> {
 
   Module &M;
-  DenseMap<Value *, ValueLattice> ValueStates;
-
-  SmallVector<Value *, 64> InstLists;
-  DenseSet<Function *> TrackedFuncs;
-
   DenseMap<Function *, std::set<User *>> CallSitesMap;
 
-
 public:
-  void visitCallBase(CallBase &CB);
-
   void solve();
   ICallSolver(Module &M) : M(M) {}
-  ValueLattice &getValueStates(Value *V) {
-    return ValueStates[V];
-  }
-
   bool getCallSites(Function *F, SmallVectorImpl<User *> &Users) {
     if (CallSitesMap.contains(F)) {
       Users.append(CallSitesMap[F].begin(), CallSitesMap[F].end());
