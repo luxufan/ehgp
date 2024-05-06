@@ -68,10 +68,13 @@ public:
       Function *F = Visiting->getFunction();
       auto &Childs = ChildsMap[Visiting->getFunction()];
 
+      SmallVector<Function *, 32> Leafs;
       auto HandleUser = [&](User *U) {
         if (auto *CB = dyn_cast<CallBase>(U)) {
+          Childs.insert(CB->getFunction());
+          // Insert into ChildsMap to make sure this nodes get printed
+          Leafs.push_back(CB->getFunction());
           if (!canBeCaught(CB, Exception, Analyzer)) {
-            Childs.insert(CB->getFunction());
             ToVisit.push_back(CB);
           }
         }
@@ -85,6 +88,10 @@ public:
         for_each(Callers, HandleUser);
       else if (Analyzer.getCallerCandidates(F, Callers))
         for_each(Callers, HandleUser);
+
+      for_each(Leafs, [&](Function *F) {
+        ChildsMap.getOrInsertDefault(F);
+      });
     }
   }
 
