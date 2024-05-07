@@ -219,6 +219,7 @@ void doEHGraphDOTPrinting(Module &M, VCallCandidatesAnalyzer &Analyzer, ICallSol
     raw_fd_ostream File(Filename, EC, sys::fs::OF_Text);
     EHGraphDOTInfo GInfo(CB, Analyzer, Solver);
     errs() << getDemangledName(GInfo.getEntryNode()->getName()) << " throw " << getDemangledName(GInfo.getException()->getName()) << "\n";
+    errs() << "Number of nodes: " << GInfo.ChildsMap.size() << "\n";
     if (!EC)
       WriteGraph(File, &GInfo);
     else
