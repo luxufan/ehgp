@@ -47,12 +47,16 @@ public:
 private:
   Function *EntryNode;
   Value *Exception;
+  Function *LeakNode;
 
 public:
-  EHGraphDOTInfo(CallBase *CxaThrow, VCallCandidatesAnalyzer &Analyzer,
+  EHGraphDOTInfo(CallBase *CxaThrow, Function *Leak, VCallCandidatesAnalyzer &Analyzer,
                  ICallSolver &Solver) {
     EntryNode = CxaThrow->getFunction();
     Exception = CxaThrow->getArgOperand(1);
+    this->LeakNode = Leak;
+
+    SmallVector<Function *, 32> Leafs;
     ChildsMap.clear();
 
     std::vector<CallBase *> ToVisit = {CxaThrow};
@@ -67,8 +71,12 @@ public:
 
       Function *F = Visiting->getFunction();
       auto &Childs = ChildsMap[Visiting->getFunction()];
+      if (F->getName() == "main") {
+        Childs.insert(LeakNode);
+        Leafs.push_back(LeakNode);
+        continue;
+      }
 
-      SmallVector<Function *, 32> Leafs;
       auto HandleUser = [&](User *U) {
         if (auto *CB = dyn_cast<CallBase>(U)) {
           Childs.insert(CB->getFunction());
@@ -89,10 +97,11 @@ public:
       else if (Analyzer.getCallerCandidates(F, Callers))
         for_each(Callers, HandleUser);
 
-      for_each(Leafs, [&](Function *F) {
-        ChildsMap.getOrInsertDefault(F);
-      });
     }
+    for_each(Leafs, [&](Function *F) {
+        ChildsMap.getOrInsertDefault(F);
+    });
+
   }
 
   Function *getEntryNode() { return EntryNode; }
@@ -203,6 +212,7 @@ struct DOTGraphTraits<EHGraphDOTInfo *> : public DefaultDOTGraphTraits {
 
 namespace {
 void doEHGraphDOTPrinting(Module &M, VCallCandidatesAnalyzer &Analyzer, ICallSolver &Solver) {
+  Function *LeakNode = Function::Create(FunctionType::get(Type::getVoidTy(M.getContext()), false), GlobalValue::ExternalLinkage, "LEAK");
   Function *CxaThrow = cast_if_present<Function>(M.getNamedValue("__cxa_throw"));
   if (!CxaThrow)
     return;
@@ -217,7 +227,7 @@ void doEHGraphDOTPrinting(Module &M, VCallCandidatesAnalyzer &Analyzer, ICallSol
     errs() << "Writing '" << Filename << "'...\n";
     std::error_code EC;
     raw_fd_ostream File(Filename, EC, sys::fs::OF_Text);
-    EHGraphDOTInfo GInfo(CB, Analyzer, Solver);
+    EHGraphDOTInfo GInfo(CB, LeakNode, Analyzer, Solver);
     errs() << getDemangledName(GInfo.getEntryNode()->getName()) << " throw " << getDemangledName(GInfo.getException()->getName()) << "\n";
     errs() << "Number of nodes: " << GInfo.ChildsMap.size() << "\n";
     if (!EC)
