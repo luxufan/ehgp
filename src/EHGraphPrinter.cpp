@@ -285,6 +285,8 @@ void doEHGraphDOTPrinting(Module &M, VCallCandidatesAnalyzer &Analyzer, ICallSol
         errs() << "  error opening file for writing!\n";
     }
   }
+
+  LeakNode->deleteValue();
 }
 }
 
