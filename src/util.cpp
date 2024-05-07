@@ -8,5 +8,5 @@ std::string getDemangledName(std::string_view Name) {
     std::free(DemangledName);
     return std::move(S);
   }
-  return "";
+  return Name.data();
 }
