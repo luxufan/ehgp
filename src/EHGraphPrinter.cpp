@@ -49,13 +49,8 @@ private:
   Value *Exception;
   Function *LeakNode;
 
-public:
-  EHGraphDOTInfo(CallBase *CxaThrow, Function *Leak, VCallCandidatesAnalyzer &Analyzer,
-                 ICallSolver &Solver) {
-    EntryNode = CxaThrow->getFunction();
-    Exception = CxaThrow->getArgOperand(1);
-    this->LeakNode = Leak;
-
+  void buildChildsMap(CallBase *CxaThrow, Function *Leak,
+                      VCallCandidatesAnalyzer &Analyzer, ICallSolver &Solver) {
     SmallVector<Function *, 32> Leafs;
     ChildsMap.clear();
 
@@ -102,6 +97,14 @@ public:
         ChildsMap.getOrInsertDefault(F);
     });
 
+  }
+
+public:
+  EHGraphDOTInfo(CallBase *CxaThrow, Function *Leak, VCallCandidatesAnalyzer &Analyzer,
+                 ICallSolver &Solver) : LeakNode(Leak) {
+    EntryNode = CxaThrow->getFunction();
+    Exception = CxaThrow->getArgOperand(1);
+    buildChildsMap(CxaThrow, Leak, Analyzer, Solver);
   }
 
   Function *getEntryNode() { return EntryNode; }
