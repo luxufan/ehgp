@@ -60,7 +60,7 @@ public:
     ChildsMap.clear();
 
     std::vector<CallBase *> ToVisit = {CxaThrow};
-    DenseSet<User *> Visited;
+    DenseSet<CallBase *> Visited;
     while (!ToVisit.empty()) {
       auto *Visiting = ToVisit.back();
       ToVisit.pop_back();
