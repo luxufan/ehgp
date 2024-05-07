@@ -16,7 +16,27 @@
 using namespace llvm;
 #define DEBUG_TYPE "ehinfer"
 
-static bool canBeCaught(CallBase *CB, Value *Exception, VCallCandidatesAnalyzer &Analyzer) {
+class CurrentException {
+
+  Value *Exception;
+  CallBase *ThrowSite;
+
+public:
+  CurrentException(CallBase *CB) : ThrowSite(CB) {
+    Exception = CB->getArgOperand(1);
+  }
+
+  std::string getExceptionName() {
+    return getDemangledName(Exception->getName());
+  }
+
+  CallBase *getThrowSite() { return ThrowSite; }
+
+  Value *getExceptionValue() { return Exception; }
+
+};
+
+static bool canBeCaught(CallBase *CB, CurrentException *Exception, VCallCandidatesAnalyzer &Analyzer) {
   auto *II = dyn_cast<InvokeInst>(CB);
   if (!II)
     return false;
@@ -27,13 +47,14 @@ static bool canBeCaught(CallBase *CB, Value *Exception, VCallCandidatesAnalyzer 
 
   for (unsigned I = 0; I < LPad->getNumClauses(); I++) {
     auto *Clause = LPad->getClause(I);
-    if (isa<ConstantPointerNull>(Clause) || Clause == Exception ||
-        Analyzer.derivedFrom(Clause, Exception))
+    if (isa<ConstantPointerNull>(Clause) || Clause == Exception->getExceptionValue() ||
+        Analyzer.derivedFrom(Clause, Exception->getExceptionValue()))
       return true;
   }
 
   return false;
 }
+
 
 class EHGraphDOTInfo {
 public:
@@ -47,15 +68,15 @@ public:
 
 private:
   Function *EntryNode;
-  Value *Exception;
+  CurrentException *Exception;
   Function *LeakNode;
 
-  void buildChildsMap(CallBase *CxaThrow, Function *Leak,
+  void buildChildsMap(Function *Leak,
                       VCallCandidatesAnalyzer &Analyzer, ICallSolver &Solver) {
     SmallVector<Function *, 32> Leafs;
     ChildsMap.clear();
 
-    std::vector<CallBase *> ToVisit = {CxaThrow};
+    std::vector<CallBase *> ToVisit = { Exception->getThrowSite() };
     DenseSet<CallBase *> Visited;
     while (!ToVisit.empty()) {
       auto *Visiting = ToVisit.back();
@@ -101,15 +122,14 @@ private:
   }
 
 public:
-  EHGraphDOTInfo(CallBase *CxaThrow, Function *Leak, VCallCandidatesAnalyzer &Analyzer,
-                 ICallSolver &Solver) : LeakNode(Leak) {
-    EntryNode = CxaThrow->getFunction();
-    Exception = CxaThrow->getArgOperand(1);
-    buildChildsMap(CxaThrow, Leak, Analyzer, Solver);
+  EHGraphDOTInfo(CurrentException *Exception, Function *Leak, VCallCandidatesAnalyzer &Analyzer,
+                 ICallSolver &Solver) : Exception(Exception), LeakNode(Leak) {
+    EntryNode = Exception->getThrowSite()->getFunction();
+    buildChildsMap(Leak, Analyzer, Solver);
   }
 
   Function *getEntryNode() { return EntryNode; }
-  Value *getException() { return Exception; }
+  CurrentException *getCurrentException() { return Exception; }
 };
 
 EHGraphDOTInfo::ChildsMapType EHGraphDOTInfo::ChildsMap;
@@ -153,7 +173,7 @@ struct DOTGraphTraits<EHGraphDOTInfo *> : public DefaultDOTGraphTraits {
   DOTGraphTraits(bool isSimple = false) : DefaultDOTGraphTraits(isSimple) {}
 
   static std::string getGraphName(EHGraphDOTInfo *CGInfo) {
-    return CGInfo->getException()->getName().str() + " propagation graph: " +
+    return CGInfo->getCurrentException()->getExceptionName() + " propagation graph: " +
       CGInfo->getEntryNode()->getName().str();
   }
 
@@ -168,7 +188,7 @@ struct DOTGraphTraits<EHGraphDOTInfo *> : public DefaultDOTGraphTraits {
 
     if (Info->getEntryNode() == Node) {
       Label += " THROWS: ";
-      std::string ExceptionName = getDemangledName(Info->getException()->getName());
+      std::string ExceptionName = getDemangledName(Info->getCurrentException()->getExceptionName());
       Label += ExceptionName;
     }
     return Label;
@@ -231,8 +251,9 @@ void doEHGraphDOTPrinting(Module &M, VCallCandidatesAnalyzer &Analyzer, ICallSol
     errs() << "Writing '" << Filename << "'...\n";
     std::error_code EC;
     raw_fd_ostream File(Filename, EC, sys::fs::OF_Text);
-    EHGraphDOTInfo GInfo(CB, LeakNode, Analyzer, Solver);
-    errs() << getDemangledName(GInfo.getEntryNode()->getName()) << " throw " << getDemangledName(GInfo.getException()->getName()) << "\n";
+    auto CurrException = std::make_unique<CurrentException>(CB);
+    EHGraphDOTInfo GInfo(CurrException.get(), LeakNode, Analyzer, Solver);
+    errs() << getDemangledName(GInfo.getEntryNode()->getName()) << " throw " << getDemangledName(GInfo.getCurrentException()->getExceptionName()) << "\n";
     errs() << "Number of nodes: " << GInfo.ChildsMap.size() << "\n";
     if (!EC)
       WriteGraph(File, &GInfo);
