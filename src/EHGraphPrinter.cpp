@@ -23,12 +23,17 @@ class CurrentException {
 
 public:
   CurrentException(CallBase *CB) : ThrowSite(CB) {
-    Exception = CB->getArgOperand(1);
+    if (CB->getCalledFunction()->getName() == "__cxa_throw")
+      Exception = CB->getArgOperand(1);
+    else
+      Exception = nullptr;
   }
 
   std::string getExceptionName() {
-    return getDemangledName(Exception->getName());
+    return Exception ? getDemangledName(Exception->getName()) : "External exception may throw by " + getDemangledName(ThrowSite->getCalledFunction()->getName());
   }
+
+  bool externalException() { return !Exception; }
 
   CallBase *getThrowSite() { return ThrowSite; }
 
@@ -45,11 +50,23 @@ static bool canBeCaught(CallBase *CB, CurrentException *Exception, VCallCandidat
   if (!LPad)
     return false;
 
+
   for (unsigned I = 0; I < LPad->getNumClauses(); I++) {
     auto *Clause = LPad->getClause(I);
-    if (isa<ConstantPointerNull>(Clause) || Clause == Exception->getExceptionValue() ||
+    if (!Exception->externalException()) {
+      if (isa<ConstantPointerNull>(Clause) || Clause == Exception->getExceptionValue() ||
         Analyzer.derivedFrom(Clause, Exception->getExceptionValue()))
-      return true;
+        return true;
+    } else {
+      // For external exception, there are 2 clauses may catch it.
+      // 1. catch (...).
+      // 2. catch (Type) where Type has external linkage.
+      if (isa<ConstantPointerNull>(Clause))
+        return true;
+      if (auto *ClauseInfo = dyn_cast<GlobalVariable>(Clause))
+        if (ClauseInfo->hasExternalLinkage())
+          return true;
+    }
   }
 
   return false;
@@ -235,30 +252,38 @@ struct DOTGraphTraits<EHGraphDOTInfo *> : public DefaultDOTGraphTraits {
 };
 
 namespace {
+
+bool shouldTrackFunction(Function *F) {
+  if (F->getName().starts_with("__cxa") && F->getName() != "__cxa_throw")
+    return false;
+
+  return F->isDeclaration() && !F->hasFnAttribute(Attribute::NoUnwind);
+}
+
 void doEHGraphDOTPrinting(Module &M, VCallCandidatesAnalyzer &Analyzer, ICallSolver &Solver) {
   Function *LeakNode = Function::Create(FunctionType::get(Type::getVoidTy(M.getContext()), false), GlobalValue::ExternalLinkage, "LEAK");
-  Function *CxaThrow = cast_if_present<Function>(M.getNamedValue("__cxa_throw"));
-  if (!CxaThrow)
-    return;
-
-  std::string Filename;
   unsigned I = 0;
-  for (auto *U : CxaThrow->users()) {
-    auto *CB = dyn_cast<CallBase>(U);
-    if (!CB)
+  for (auto &F : M.functions()) {
+    if (!shouldTrackFunction(&F))
       continue;
-    Filename = std::string(M.getModuleIdentifier() + "." + utostr(I++) + ".dot");
-    errs() << "Writing '" << Filename << "'...\n";
-    std::error_code EC;
-    raw_fd_ostream File(Filename, EC, sys::fs::OF_Text);
-    auto CurrException = std::make_unique<CurrentException>(CB);
-    EHGraphDOTInfo GInfo(CurrException.get(), LeakNode, Analyzer, Solver);
-    errs() << getDemangledName(GInfo.getEntryNode()->getName()) << " throw " << getDemangledName(GInfo.getCurrentException()->getExceptionName()) << "\n";
-    errs() << "Number of nodes: " << GInfo.ChildsMap.size() << "\n";
-    if (!EC)
-      WriteGraph(File, &GInfo);
-    else
-      errs() << "  error opening file for writing!\n";
+    std::string Filename;
+    for (auto *U : F.users()) {
+      auto *CB = dyn_cast<CallBase>(U);
+      if (!CB)
+        continue;
+      Filename = std::string(M.getModuleIdentifier() + "." + utostr(I++) + ".dot");
+      errs() << "Writing '" << Filename << "'...\n";
+      std::error_code EC;
+      raw_fd_ostream File(Filename, EC, sys::fs::OF_Text);
+      auto CurrException = std::make_unique<CurrentException>(CB);
+      EHGraphDOTInfo GInfo(CurrException.get(), LeakNode, Analyzer, Solver);
+      errs() << getDemangledName(GInfo.getEntryNode()->getName()) << " throw " << getDemangledName(GInfo.getCurrentException()->getExceptionName()) << "\n";
+      errs() << "Number of nodes: " << GInfo.ChildsMap.size() << "\n";
+      if (!EC)
+        WriteGraph(File, &GInfo);
+      else
+        errs() << "  error opening file for writing!\n";
+    }
   }
 }
 }
