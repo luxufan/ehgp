@@ -40,9 +40,10 @@ public:
 
   using ChildsSetType = DenseSet<Function *>;
   using ChildsMapType = DenseMap<Function *, ChildsSetType>;
+
   // This is static class variable since we need to use it
   // in GraphTraits::childs_begin
-    static ChildsMapType ChildsMap;
+  static ChildsMapType ChildsMap;
 
 private:
   Function *EntryNode;
