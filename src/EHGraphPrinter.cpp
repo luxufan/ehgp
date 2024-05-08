@@ -30,7 +30,7 @@ public:
   }
 
   std::string getExceptionName() {
-    return Exception ? getDemangledName(Exception->getName()) : "External exception may throw by " + getDemangledName(ThrowSite->getCalledFunction()->getName());
+    return Exception ? getDemangledName(Exception->getName()) : "Potential external exception throwed by " + getDemangledName(ThrowSite->getCalledFunction()->getName());
   }
 
   bool externalException() { return !Exception; }
