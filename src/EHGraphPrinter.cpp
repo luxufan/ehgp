@@ -297,7 +297,7 @@ void doEHGraphDOTPrinting(Module &M, VCallCandidatesAnalyzer &Analyzer, ICallSol
     }
   }
 
-  LeakNode->deleteValue();
+  delete LeakNode;
 }
 }
 
