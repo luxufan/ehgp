@@ -87,6 +87,7 @@ private:
   Function *EntryNode;
   CurrentException *Exception;
   Function *LeakNode;
+  bool Leaked = false;
 
   void buildChildsMap(Function *Leak,
                       VCallCandidatesAnalyzer &Analyzer, ICallSolver &Solver) {
@@ -106,6 +107,7 @@ private:
       Function *F = Visiting->getFunction();
       auto &Childs = ChildsMap[Visiting->getFunction()];
       if (F->getName() == "main") {
+        Leaked = true;
         Childs.insert(LeakNode);
         Leafs.push_back(LeakNode);
         continue;
@@ -147,6 +149,7 @@ public:
 
   Function *getEntryNode() { return EntryNode; }
   CurrentException *getCurrentException() { return Exception; }
+  bool isLeaked() { return Leaked; }
 };
 
 EHGraphDOTInfo::ChildsMapType EHGraphDOTInfo::ChildsMap;
@@ -277,8 +280,16 @@ void doEHGraphDOTPrinting(Module &M, VCallCandidatesAnalyzer &Analyzer, ICallSol
       raw_fd_ostream File(Filename, EC, sys::fs::OF_Text);
       auto CurrException = std::make_unique<CurrentException>(CB);
       EHGraphDOTInfo GInfo(CurrException.get(), LeakNode, Analyzer, Solver);
-      errs() << getDemangledName(GInfo.getEntryNode()->getName()) << " throw " << getDemangledName(GInfo.getCurrentException()->getExceptionName()) << "\n";
-      errs() << "Number of nodes: " << GInfo.ChildsMap.size() << "\n";
+
+      errs() << "    Entry node: " << getDemangledName(GInfo.getEntryNode()->getName()) << "\n";
+      errs() << "    Exceptoin: " << getDemangledName(GInfo.getCurrentException()->getExceptionName()) << "\n";
+      errs() << "    Number of nodes: " << GInfo.ChildsMap.size() << "\n";
+      errs() << "    Leaked: ";
+      if (GInfo.isLeaked())
+        errs() << "yes\n";
+      else
+        errs() << "no\n";
+
       if (!EC)
         WriteGraph(File, &GInfo);
       else
