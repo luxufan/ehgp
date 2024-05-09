@@ -11,3 +11,18 @@ target_link_libraries(
   ${llvm_libs}
   ica
 )
+
+add_executable(
+  NestTryCatchTest
+  NestTryCatchTest.cpp
+)
+
+target_link_libraries(
+  NestTryCatchTest
+  gtest_main
+  ${llvm_libs}
+  egp
+  ica
+  ics
+  util
+)
