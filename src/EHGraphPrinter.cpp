@@ -275,12 +275,12 @@ void doEHGraphDOTPrinting(Module &M, VCallCandidatesAnalyzer &Analyzer, ICallSol
       if (!CB)
         continue;
       Filename = std::string(M.getModuleIdentifier() + "." + utostr(I++) + ".dot");
-      errs() << "Writing '" << Filename << "'...\n";
       std::error_code EC;
       raw_fd_ostream File(Filename, EC, sys::fs::OF_Text);
       auto CurrException = std::make_unique<CurrentException>(CB);
       EHGraphDOTInfo GInfo(CurrException.get(), LeakNode, Analyzer, Solver);
 
+      errs() << "Writing '" << Filename << "'...\n";
       errs() << "    Entry node: " << getDemangledName(GInfo.getEntryNode()->getName()) << "\n";
       errs() << "    Exceptoin: " << getDemangledName(GInfo.getCurrentException()->getExceptionName()) << "\n";
       errs() << "    Number of nodes: " << GInfo.ChildsMap.size() << "\n";
