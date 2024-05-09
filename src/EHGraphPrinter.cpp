@@ -16,30 +16,6 @@
 using namespace llvm;
 #define DEBUG_TYPE "ehinfer"
 
-class CurrentException {
-
-  Value *Exception;
-  CallBase *ThrowSite;
-
-public:
-  CurrentException(CallBase *CB) : ThrowSite(CB) {
-    if (CB->getCalledFunction()->getName() == "__cxa_throw")
-      Exception = CB->getArgOperand(1);
-    else
-      Exception = nullptr;
-  }
-
-  std::string getExceptionName() {
-    return Exception ? getDemangledName(Exception->getName()) : "Potential external exception throwed by " + getDemangledName(ThrowSite->getCalledFunction()->getName());
-  }
-
-  bool externalException() { return !Exception; }
-
-  CallBase *getThrowSite() { return ThrowSite; }
-
-  Value *getExceptionValue() { return Exception; }
-
-};
 
 static bool canBeCaught(CallBase *CB, CurrentException *Exception, VCallCandidatesAnalyzer &Analyzer) {
   auto *II = dyn_cast<InvokeInst>(CB);
@@ -72,87 +48,58 @@ static bool canBeCaught(CallBase *CB, CurrentException *Exception, VCallCandidat
   return false;
 }
 
-
-class EHGraphDOTInfo {
-public:
-
-  using ChildsSetType = DenseSet<Function *>;
-  using ChildsMapType = DenseMap<Function *, ChildsSetType>;
-
-  // This is static class variable since we need to use it
-  // in GraphTraits::childs_begin
-  static ChildsMapType ChildsMap;
-
-private:
-  Function *EntryNode;
-  CurrentException *Exception;
-  Function *LeakNode;
-  bool Leaked = false;
-
-  void buildChildsMap(Function *Leak,
-                      VCallCandidatesAnalyzer &Analyzer, ICallSolver &Solver) {
-    SmallVector<Function *, 32> Leafs;
-    ChildsMap.clear();
-
-    std::vector<CallBase *> ToVisit = { Exception->getThrowSite() };
-    DenseSet<CallBase *> Visited;
-    while (!ToVisit.empty()) {
-      auto *Visiting = ToVisit.back();
-      ToVisit.pop_back();
-      if (Visited.contains(Visiting))
-        continue;
-
-      Visited.insert(Visiting);
-
-      Function *F = Visiting->getFunction();
-      auto &Childs = ChildsMap[Visiting->getFunction()];
-      if (F->getName() == "main") {
-        Leaked = true;
-        Childs.insert(LeakNode);
-        Leafs.push_back(LeakNode);
-        continue;
-      }
-
-      auto HandleUser = [&](User *U) {
-        if (auto *CB = dyn_cast<CallBase>(U)) {
-          Childs.insert(CB->getFunction());
-          // Insert into ChildsMap to make sure this nodes get printed
-          Leafs.push_back(CB->getFunction());
-          if (!canBeCaught(CB, Exception, Analyzer)) {
-            ToVisit.push_back(CB);
-          }
-        }
-      };
-
-      for_each(F->users(), HandleUser);
-
-      SmallVector<User *, 5> Callers;
-
-      if (Solver.getCallSites(F, Callers))
-        for_each(Callers, HandleUser);
-      else if (Analyzer.getCallerCandidates(F, Callers))
-        for_each(Callers, HandleUser);
-
-    }
-    for_each(Leafs, [&](Function *F) {
-        ChildsMap.getOrInsertDefault(F);
-    });
-
-  }
-
-public:
-  EHGraphDOTInfo(CurrentException *Exception, Function *Leak, VCallCandidatesAnalyzer &Analyzer,
-                 ICallSolver &Solver) : Exception(Exception), LeakNode(Leak) {
-    EntryNode = Exception->getThrowSite()->getFunction();
-    buildChildsMap(Leak, Analyzer, Solver);
-  }
-
-  Function *getEntryNode() { return EntryNode; }
-  CurrentException *getCurrentException() { return Exception; }
-  bool isLeaked() { return Leaked; }
-};
-
 EHGraphDOTInfo::ChildsMapType EHGraphDOTInfo::ChildsMap;
+
+void EHGraphDOTInfo::buildChildsMap(Function *Leak,
+                    VCallCandidatesAnalyzer &Analyzer, ICallSolver &Solver) {
+  SmallVector<Function *, 32> Leafs;
+  ChildsMap.clear();
+
+  std::vector<CallBase *> ToVisit = { Exception->getThrowSite() };
+  DenseSet<CallBase *> Visited;
+  while (!ToVisit.empty()) {
+    auto *Visiting = ToVisit.back();
+    ToVisit.pop_back();
+    if (Visited.contains(Visiting))
+      continue;
+
+    Visited.insert(Visiting);
+
+    Function *F = Visiting->getFunction();
+    auto &Childs = ChildsMap[Visiting->getFunction()];
+    if (F->getName() == "main") {
+      Leaked = true;
+      Childs.insert(LeakNode);
+      Leafs.push_back(LeakNode);
+      continue;
+    }
+
+    auto HandleUser = [&](User *U) {
+      if (auto *CB = dyn_cast<CallBase>(U)) {
+        Childs.insert(CB->getFunction());
+        // Insert into ChildsMap to make sure this nodes get printed
+        Leafs.push_back(CB->getFunction());
+        if (!canBeCaught(CB, Exception, Analyzer)) {
+          ToVisit.push_back(CB);
+        }
+      }
+    };
+
+    for_each(F->users(), HandleUser);
+
+    SmallVector<User *, 5> Callers;
+
+    if (Solver.getCallSites(F, Callers))
+      for_each(Callers, HandleUser);
+    else if (Analyzer.getCallerCandidates(F, Callers))
+      for_each(Callers, HandleUser);
+
+  }
+  for_each(Leafs, [&](Function *F) {
+      ChildsMap.getOrInsertDefault(F);
+  });
+
+}
 
 template <>
 struct GraphTraits<EHGraphDOTInfo *> {
