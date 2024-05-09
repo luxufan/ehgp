@@ -22,10 +22,9 @@ static bool canBeCaught(CallBase *CB, CurrentException *Exception, VCallCandidat
   if (!II)
     return false;
 
-  auto *LPad = dyn_cast_if_present<LandingPadInst>(II->getUnwindDest()->getFirstNonPHI());
+  auto *LPad = II->getUnwindDest()->getLandingPadInst();
   if (!LPad)
     return false;
-
 
   for (unsigned I = 0; I < LPad->getNumClauses(); I++) {
     auto *Clause = LPad->getClause(I);
