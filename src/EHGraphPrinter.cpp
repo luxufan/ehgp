@@ -16,6 +16,8 @@
 using namespace llvm;
 #define DEBUG_TYPE "ehinfer"
 
+static cl::opt<std::string>
+OutputDirectory("output-dir", cl::desc("Directory to place the output file"), cl::value_desc("filename"));
 
 static bool canBeCaught(CallBase *CB, CurrentException *Exception, VCallCandidatesAnalyzer &Analyzer) {
   auto *II = dyn_cast<InvokeInst>(CB);
@@ -220,7 +222,8 @@ void doEHGraphDOTPrinting(Module &M, VCallCandidatesAnalyzer &Analyzer, ICallSol
       auto *CB = dyn_cast<CallBase>(U);
       if (!CB)
         continue;
-      Filename = std::string(M.getModuleIdentifier() + "." + utostr(I++) + ".dot");
+      Filename = std::string(OutputDirectory + "/" + utostr(I++) + ".dot");
+
       std::error_code EC;
       raw_fd_ostream File(Filename, EC, sys::fs::OF_Text);
       auto CurrException = std::make_unique<CurrentException>(CB);
