@@ -19,6 +19,9 @@ using namespace llvm;
 static cl::opt<std::string>
 OutputDirectory("output-dir", cl::desc("Directory to place the output file"), cl::value_desc("filename"));
 
+static cl::opt<unsigned>
+NodeThreshold("threshold", cl::desc("The node number threshold to print"), cl::init(200));
+
 static bool canBeCaught(CallBase *CB, CurrentException *Exception, VCallCandidatesAnalyzer &Analyzer) {
   auto *II = dyn_cast<InvokeInst>(CB);
   if (!II)
@@ -232,6 +235,8 @@ void doEHGraphDOTPrinting(Module &M, VCallCandidatesAnalyzer &Analyzer, ICallSol
       raw_fd_ostream File(Filename, EC, sys::fs::OF_Text);
       auto CurrException = std::make_unique<CurrentException>(CB);
       EHGraphDOTInfo GInfo(CurrException.get(), LeakNode, Analyzer, Solver);
+      if (GInfo.ChildsMap.size() > NodeThreshold)
+        continue;
 
       errs() << "Writing '" << Filename << "'...\n";
       errs() << "    Entry node: " << getDemangledName(GInfo.getEntryNode()->getName()) << "\n";
