@@ -222,6 +222,10 @@ void doEHGraphDOTPrinting(Module &M, VCallCandidatesAnalyzer &Analyzer, ICallSol
       auto *CB = dyn_cast<CallBase>(U);
       if (!CB)
         continue;
+
+      if (CB->getFunction()->getName().starts_with("_GLOBAL_"))
+        continue;
+
       Filename = std::string(OutputDirectory + "/" + utostr(I++) + ".dot");
 
       std::error_code EC;
