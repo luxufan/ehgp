@@ -215,7 +215,7 @@ bool shouldTrackFunction(Function *F) {
 }
 
 void doEHGraphDOTPrinting(Module &M, VCallCandidatesAnalyzer &Analyzer, ICallSolver &Solver) {
-  Function *LeakNode = Function::Create(FunctionType::get(Type::getVoidTy(M.getContext()), false), GlobalValue::ExternalLinkage, "LEAK");
+  std::unique_ptr<Function> LeakNode(Function::Create(FunctionType::get(Type::getVoidTy(M.getContext()), false), GlobalValue::ExternalLinkage, "LEAK"));
   unsigned I = 0;
   for (auto &F : M.functions()) {
     if (!shouldTrackFunction(&F))
@@ -234,7 +234,7 @@ void doEHGraphDOTPrinting(Module &M, VCallCandidatesAnalyzer &Analyzer, ICallSol
       std::error_code EC;
       raw_fd_ostream File(Filename, EC, sys::fs::OF_Text);
       auto CurrException = std::make_unique<CurrentException>(CB);
-      EHGraphDOTInfo GInfo(CurrException.get(), LeakNode, Analyzer, Solver);
+      EHGraphDOTInfo GInfo(CurrException.get(), LeakNode.get(), Analyzer, Solver);
       if (GInfo.ChildsMap.size() > NodeThreshold)
         continue;
 
@@ -255,7 +255,6 @@ void doEHGraphDOTPrinting(Module &M, VCallCandidatesAnalyzer &Analyzer, ICallSol
     }
   }
 
-  delete LeakNode;
 }
 }
 
