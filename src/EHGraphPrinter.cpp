@@ -247,6 +247,7 @@ void doEHGraphDOTPrinting(Module &M, VCallCandidatesAnalyzer &Analyzer, ICallSol
         errs() << "yes\n";
       else
         errs() << "no\n";
+      errs() << "\n";
 
       if (!EC)
         WriteGraph(File, &GInfo);
