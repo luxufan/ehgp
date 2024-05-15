@@ -7,6 +7,23 @@
 
 using namespace llvm;
 
+// This unittest is from the follow c++ codes.
+// struct A {
+//   virtual void f() = 0;
+// };
+//
+// struct B : A {
+//   virtual void f() {}
+// };
+//
+// struct C : A {
+//   virtual void f() {}
+// };
+//
+// void test(A *a) {
+//   a->f();
+// }
+
 TEST(SubClassTest, Basic) {
 StringRef Assembly = R"(
 target datalayout = "e-m:e-i8:8:32-i16:16:32-i64:64-i128:128-n32:64-S128"
