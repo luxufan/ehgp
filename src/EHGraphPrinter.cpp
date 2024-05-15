@@ -7,6 +7,7 @@
 #include <llvm/Support/GraphWriter.h>
 #include <llvm/Demangle/Demangle.h>
 #include <llvm/ADT/SmallPtrSet.h>
+#include <llvm/Support/Debug.h>
 
 #include "ICallSolver.h"
 #include "EHGraphPrinter.h"

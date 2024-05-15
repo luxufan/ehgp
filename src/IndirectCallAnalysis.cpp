@@ -2,6 +2,7 @@
 #include <llvm/Analysis/ConstantFolding.h>
 #include <llvm/IR/IntrinsicInst.h>
 #include <llvm/ADT/Statistic.h>
+#include <llvm/Support/Debug.h>
 
 #define DEBUG_TYPE "vcallanalysis"
 
@@ -69,6 +70,16 @@ bool VCallCandidatesAnalyzer::analyze() {
       }
     }
   }
+
+#ifndef NDEBUG
+  for (auto It : CallerMap) {
+    LLVM_DEBUG(llvm::dbgs() << It.first->getName() << " has callers: ");
+    for (auto *U : It.second)
+      if (auto *F = dyn_cast<Function>(cast<Instruction>(U)->getFunction()))
+        LLVM_DEBUG(llvm::dbgs() << F->getName() << ", ");
+    LLVM_DEBUG(llvm::dbgs() << "\n");
+  }
+#endif
 
   return true;
 }
