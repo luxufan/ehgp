@@ -81,6 +81,5 @@ entry:
 
   Function *VFB = cast<Function>(M->getNamedValue("_ZN1B1fEv"));
   SmallVector<User *> Tmp;
-  //FIXME: This is wrong. The VFB has potential caller.
-  EXPECT_FALSE(Analyzer.getCallerCandidates(VFB, Tmp));
+  EXPECT_TRUE(Analyzer.getCallerCandidates(VFB, Tmp));
 }

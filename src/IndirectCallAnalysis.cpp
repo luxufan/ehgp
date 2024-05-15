@@ -121,7 +121,7 @@ bool VCallCandidatesAnalyzer::getVCallCandidates(CallBase *CB, SmallVectorImpl<F
     bool Overflow;
     if (auto *F = dyn_cast<Function>(ConstantFoldLoadFromConstPtr(AP.first, PointerType::get(M.getContext(), 0), Offset.uadd_ov(APInt(64, AP.second), Overflow), M.getDataLayout()))) {
       if (F->isDeclaration())
-        return false;
+        continue;
       if (F->getName() != "__cxa_pure_virtual")
         Candidates.push_back(F);
     }
