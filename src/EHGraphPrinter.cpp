@@ -236,8 +236,6 @@ void doEHGraphDOTPrinting(Module &M, VCallCandidatesAnalyzer &Analyzer, ICallSol
       raw_fd_ostream File(Filename, EC, sys::fs::OF_Text);
       auto CurrException = std::make_unique<CurrentException>(CB);
       EHGraphDOTInfo GInfo(CurrException.get(), LeakNode.get(), Analyzer, Solver);
-      if (GInfo.ChildsMap.size() > NodeThreshold)
-        continue;
 
       errs() << "Writing '" << Filename << "'...\n";
       errs() << "    Entry node: " << getDemangledName(GInfo.getEntryNode()->getName()) << "\n";
@@ -248,7 +246,19 @@ void doEHGraphDOTPrinting(Module &M, VCallCandidatesAnalyzer &Analyzer, ICallSol
         errs() << "yes\n";
       else
         errs() << "no\n";
+
+      errs() << "    Get printed: ";
+
+      bool ShouldPrint = GInfo.ChildsMap.size() <= NodeThreshold;
+      if (ShouldPrint)
+        errs() << "yes\n";
+      else
+        errs() << "no\n";
+
       errs() << "\n";
+
+      if (!ShouldPrint)
+        continue;
 
       if (!EC)
         WriteGraph(File, &GInfo);
