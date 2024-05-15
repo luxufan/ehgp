@@ -26,3 +26,15 @@ target_link_libraries(
   ics
   util
 )
+
+add_executable(
+  PureVirtualTest
+  PureVirtualTest.cpp
+)
+
+target_link_libraries(
+  PureVirtualTest
+  gtest_main
+  ${llvm_libs}
+  ica
+)
